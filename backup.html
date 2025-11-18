@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard</title>
+  <style>
+    /* ---------------- Global Styles ---------------- */
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      font-family: sans-serif;
+      color: white;
+      background: url('https://lh3.googleusercontent.com/proxy/wKevJtAnNVKsFWkn71WJHIb3wVdivO6HHn7gwCHpgjq3wTc09fLzLvEkWAURjzW_ijwmyPHL09rfJc1_A8nmgS5owUp2chfO4qu-1SeV_ZDl=w3840-h2160-p-k-no-nd-mv')
+        no-repeat center center fixed;
+      background-size: cover;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100vh;
+    }
+
+    /* ---------------- Embedded Stream ---------------- */
+    iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ---------------- Frosted Boxes for Date, Time, Weather ---------------- */
+    .info-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      padding: 15px 20px;
+      background: rgba(0, 0, 0, 0.3);
+      backdrop-filter: blur(12px);
+      border-radius: 15px;
+      max-width: 900px;
+      margin: 20px auto 0 auto;
+      font-size: 1.4rem;
+      font-weight: 600;
+      box-shadow: 0 0 15px rgba(0,0,0,0.5);
+    }
+
+    .info-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 150px;
+      padding: 10px 15px;
+      border-radius: 12px;
+      background: rgba(255 255 255 / 0.1);
+      box-shadow: 0 0 8px rgba(255 255 255 / 0.15);
+    }
+
+    #date, #time {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ---------------- Weather Styling ---------------- */
+    #weather {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      font-size: 1.3rem;
+      color: #e0e0e0;
+    }
+
+    #weather-city {
+      font-weight: 700;
+      font-size: 1.5rem;
+    }
+
+    #weather-condition {
+      font-style: italic;
+      opacity: 0.85;
+    }
+
+    #weather-temp {
+      font-weight: 700;
+      font-size: 1.6rem;
+    }
+
+    /* ---------------- Tickers ---------------- */
+    .ticker {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      height: 60px;
+      overflow: hidden;
+      background: rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      font-size: 1.4rem;
+      font-weight: 600;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.7);
+      z-index: 2;
+      user-select: none;
+    }
+
+    .ticker-text {
+      white-space: nowrap;
+      position: absolute;
+      will-change: transform;
+      display: inline-block;
+      padding-left: 100%;
+      direction: rtl;
+    }
+
+    #stocks-ticker {
+      bottom: 120px;
+      background: rgba(0, 0, 0, 0.4);
+    }
+    #world-ticker {
+      bottom: 60px;
+      background: rgba(0, 0, 0, 0.4);
+    }
+
+    /* ---------------- Stock change colors ---------------- */
+    .positive {
+      color: #4ade80; /* green */
+    }
+    .negative {
+      color: #f87171; /* red */
+    }
+
+    /* ---------------- Responsive tweaks ---------------- */
+    @media (max-width: 600px) {
+      .info-container {
+        flex-direction: column;
+        max-width: 95vw;
+        font-size: 1.1rem;
+      }
+      .ticker {
+        font-size: 1rem;
+        height: 50px;
+      }
+      #stocks-ticker {
+        bottom: 50px;
+      }
+    }
+  </style>
+</head>
+<body>
+  
+
+  <!-- ---------------- Info Boxes: Date, Time, Weather ---------------- -->
+  <div class="info-container" aria-label="Date, Time and Weather Information">
+    <div class="info-box" id="date" aria-live="polite" aria-atomic="true" aria-label="Current date"></div>
+    <div class="info-box" id="weather" aria-live="polite" aria-atomic="true" aria-label="Current weather">
+      <div id="weather-city"></div>
+      <div id="weather-condition"></div>
+      <div id="weather-temp"></div>
+      
+    </div>
+    <div class="info-box" id="time" aria-live="polite" aria-atomic="true" aria-label="Current time"></div>
+  </div>
+
+  <!-- ---------------- Tickers ---------------- -->
+  <div class="ticker" id="stocks-ticker" aria-label="Stocks ticker">
+    <div class="ticker-text" id="stocks-text"></div>
+  </div>
+  <div class="ticker" id="news-ticker" aria-label="News ticker">
+    <div class="ticker-text" id="news-text"></div>
+  </div>
+  <div class="ticker" id="world-ticker" aria-label="World news ticker">
+    <div class="ticker-text" id="world-text"></div>
+  </div>
+
+  <!-- ---------------- Scripts ---------------- -->
+  <script>
+    /* ---------------- Utility Constants ---------------- */
+    const STOCK_SEPARATOR = ' \u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0 ';
+    const NEWS_SEPARATOR = ' \u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0 ';
+
+    /* ---------------- Date & Time ---------------- */
+    function updateDate() {
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      document.getElementById('date').textContent = `${month}/${day}/${year}`;
+    }
+
+    function updateTime() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('time').textContent = `${h}:${m}:${s}`;
+    }
+
+    updateDate();
+    setInterval(updateDate, 60000);
+    updateTime();
+    setInterval(updateTime, 1000);
+
+    /* ---------------- Weather ---------------- */
+    async function fetchWeather() {
+      try {
+        const lat = 26.28864,
+          lon = 50.11396,
+          city = 'Dhahran';
+        const data = await (
+          await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
+          )
+        ).json();
+        const { temperature: temp, weathercode } = data.current_weather;
+        const conditions = {
+          0: 'Clear sky',
+          1: 'Mainly clear',
+          2: 'Partly cloudy',
+          3: 'Overcast',
+          45: 'Fog',
+          48: 'Depositing rime fog',
+          51: 'Light drizzle',
+          53: 'Moderate drizzle',
+          55: 'Dense drizzle',
+          61: 'Slight rain',
+          63: 'Moderate rain',
+          65: 'Heavy rain',
+          71: 'Light snow',
+          73: 'Moderate snow',
+          75: 'Heavy snow',
+          95: 'Thunderstorm',
+          96: 'Thunderstorm with slight hail',
+          99: 'Thunderstorm with heavy hail',
+        };
+        document.getElementById('weather-city').innerText = city;
+        document.getElementById('weather-temp').innerText = `${temp}°C`;
+        document.getElementById('weather-condition').innerText =
+          conditions[weathercode] || 'Unknown';
+      } catch {
+        document.getElementById('weather-city').innerText = 'Unavailable';
+        document.getElementById('weather-temp').innerText = '';
+        document.getElementById('weather-condition').innerText = '';
+      }
+    }
+
+    fetchWeather();
+    setInterval(fetchWeather, 600000);
+
+    /* ---------------- Tickers Utility ---------------- */
+    // Right-to-left ticker animation using requestAnimationFrame
+    function startRightToLeftTicker(tickerId, speed = 100, fetchCallback = null) {
+      const ticker = document.getElementById(tickerId);
+      const tickerText = ticker.querySelector('.ticker-text');
+      let animationFrameId = null;
+      let lastTimestamp = null;
+      let pos = 0;
+
+      async function updateContent() {
+        if (fetchCallback) await fetchCallback();
+        // Reset position to 0 (start fully visible on right)
+        pos = 0;
+        tickerText.style.transform = `translateX(${pos}px)`;
+      }
+
+      function animate(timestamp) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const delta = timestamp - lastTimestamp;
+        lastTimestamp = timestamp;
+        // Move left by speed pixels per second scaled by delta time
+        pos -= (speed * delta) / 1000;
+        // When fully scrolled out to left, reset position
+        if (-pos >= tickerText.offsetWidth) {
+          pos = ticker.offsetWidth;
+        }
+        tickerText.style.transform = `translateX(${pos}px)`;
+        animationFrameId = requestAnimationFrame(animate);
+      }
+
+      async function start() {
+        await updateContent();
+        animationFrameId = requestAnimationFrame(animate);
+      }
+
+      start();
+
+      return () => {
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+      };
+    }
+
+    /* ---------------- Stocks Ticker ---------------- */
+    const symbols = [
+      'AAPL',
+      'GOOGL',
+      'FXAIX',
+      'MSFT',
+      'FBTC',
+      'NVDA',
+      'TSLA',
+      'AMZN',
+      'PYPL',
+      'SPY',
+      'VOO',
+      'VTI',
+      'QQQ',
+      'BINANCE:BTCUSDT',
+    ];
+    const stockData = {},
+      prevClose = {};
+    const stocksText = document.getElementById('stocks-text');
+
+    function initializeTradeData(symbol, price) {
+      if (!(symbol in prevClose)) prevClose[symbol] = price;
+      if (!(symbol in stockData)) stockData[symbol] = price;
+    }
+
+    async function fetchInitialPrices() {
+      const restSymbols = symbols.filter((s) => !s.startsWith('BINANCE:'));
+      try {
+        const token = 'd3d2t51r01qmnfgfsh9gd3d2t51r01qmnfgfsha0';
+        await Promise.all(
+          restSymbols.map(async (symbol) => {
+            const resp = await fetch(
+              `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${token}`
+            );
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (typeof data.c === 'number' && typeof data.pc === 'number') {
+              stockData[symbol] = data.c;
+              prevClose[symbol] = data.pc;
+            }
+          })
+        );
+        updateTicker();
+      } catch {}
+    }
+
+    const ws = new WebSocket('wss://ws.finnhub.io?token=d3d2t51r01qmnfgfsh9gd3d2t51r01qmnfgfsha0');
+    ws.addEventListener('open', () => {
+      symbols.forEach((s) => ws.send(JSON.stringify({ type: 'subscribe', symbol: s })));
+    });
+    ws.addEventListener('message', (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'trade')
+        msg.data.forEach((trade) => {
+          initializeTradeData(trade.s, trade.p);
+          stockData[trade.s] = trade.p;
+        });
+      updateTicker();
+    });
+
+    function updateTicker() {
+      const results = symbols.map((s) => {
+        const price = stockData[s] || 0;
+        const prev = prevClose[s] || price;
+        const change = price - prev;
+        const percent = prev !== 0 ? (change / prev) * 100 : 0;
+        const arrow = change >= 0 ? '▲' : '▼';
+        const className = change >= 0 ? 'positive' : 'negative';
+        const displaySymbol = s === 'BINANCE:BTCUSDT' ? 'BTCUSDT' : s;
+        return `${displaySymbol} $${price.toFixed(2)} <span class="${className}">${change >= 0 ? '+' : ''}${change.toFixed(
+          2
+        )} ${arrow} ${percent.toFixed(2)}%</span>`;
+      });
+      stocksText.innerHTML = results.join(STOCK_SEPARATOR);
+    }
+
+    fetchInitialPrices();
+
+    /* ---------------- News Ticker ---------------- */
+    async function fetchNews() {
+      const newsTicker = document.getElementById('news-text');
+      const BREAKER = '<span style="display:inline-block; width:150px; text-align:center; background:#dc2626; color:white; font-weight:bold; padding:6px 0; margin:0 100px; border-radius: 6px;">BREAKING</span>';
+
+      try {
+        const rssUrl = 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml';
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Failed to fetch RSS');
+
+        const data = await response.json();
+
+        // Parse XML
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(data.contents, 'text/xml');
+        const items = Array.from(xml.getElementsByTagName('item'));
+
+        if (!items.length) throw new Error('No news items found');
+
+        // Take the latest 8 news items
+        const filteredItems = items.slice(0, 8);
+        const newsText = filteredItems.map((item) => {
+          const title = item.getElementsByTagName('title')[0]?.textContent || '';
+          const desc = item.getElementsByTagName('description')[0]?.textContent || '';
+          const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent;
+          let timeStr = '';
+          if (pubDate) {
+            const d = new Date(pubDate);
+            timeStr = `(${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')})`;
+          }
+          return `${title}: ${desc} ${timeStr}`;
+        }).join(BREAKER);
+
+        newsTicker.innerHTML = newsText;
+      } catch (err) {
+        console.error('Error fetching news:', err);
+        newsTicker.innerHTML = 'Unable to load news';
+      }
+    }
+
+    // Initialize news ticker
+    (async () => {
+      await fetchNews();
+      startRightToLeftTicker('news-ticker', 150, null);
+    })();
+
+    /* ---------------- World News Ticker ---------------- */
+    async function fetchWorldNews() {
+      const worldTicker = document.getElementById('world-text');
+      const LABEL = '<span style="display:inline-block; width:150px; text-align:center; background:#1d4ed8; color:white; font-weight:bold; padding:6px 0; margin:0 100px; border-radius: 6px;">WORLD</span>';
+
+      try {
+        const rssUrl = 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml';
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Failed to fetch RSS');
+
+        const data = await response.json();
+
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(data.contents, 'text/xml');
+        const items = Array.from(xml.getElementsByTagName('item'));
+
+        if (!items.length) throw new Error('No world news found');
+
+        const filteredItems = items.slice(0, 8);
+        const worldText = filteredItems.map((item) => {
+          const title = item.getElementsByTagName('title')[0]?.textContent || '';
+          const desc = item.getElementsByTagName('description')[0]?.textContent || '';
+          const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent;
+          let timeStr = '';
+          if (pubDate) {
+            const d = new Date(pubDate);
+            timeStr = `(${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')})`;
+          }
+          return `${title}: ${desc} ${timeStr}`;
+        }).join(LABEL);
+
+        worldTicker.innerHTML = worldText;
+      } catch (err) {
+        console.error('Error fetching world news:', err);
+        worldTicker.innerHTML = 'Unable to load world news';
+      }
+    }
+
+    (async () => {
+      await fetchWorldNews();
+      startRightToLeftTicker('world-ticker', 190, null);
+    })();
+
+    // Start stocks ticker after initial prices fetched
+    (async () => {
+      await fetchInitialPrices();
+      startRightToLeftTicker('stocks-ticker', 240, null);
+    })();
+  </script>
+</body>
+</html>
